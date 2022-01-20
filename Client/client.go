@@ -1,11 +1,20 @@
 package main
 
 import (
+	"bufio"
+	"encoding/base64"
 	"fmt"
 	//"github.com/google/gopacket"
 	"net"
 	"os"
 )
+
+func checkError(err error, msg string){
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Erro em " + msg + "\n", err.Error())
+		os.Exit(1)
+	}
+}
 
 func checkParams(args []string) (net.IP, string, *os.File) {
 	if len(args) != 4 {
@@ -24,28 +33,36 @@ func checkParams(args []string) (net.IP, string, *os.File) {
 	return ip, port, file
 }
 
-func checkError(err error, msg string){
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Erro em " + msg + "\n", err.Error())
-		os.Exit(1)
-	}
+func readFile() []byte {
+	file, err := os.Open("./go.png")
+	checkError(err, "file")
+	defer file.Close()
+
+	fileInfo, _ := file.Stat()
+	fileSize := fileInfo.Size()
+
+	bytes := make([]byte, fileSize)
+
+	bufferReader := bufio.NewReader(file)
+	bufferReader.Read(bytes)
+
+	return bytes
 }
 
 func main() {
-	ip, port, file := checkParams(os.Args)
-	defer file.Close()
-	fmt.Printf("# IP: %s \n", string(ip))
-	fmt.Printf("# PORT: %s \n", port)
-	fileState, _ := file.Stat()
-	fileName := fileState.Name()
-	fmt.Printf(fileName)
+	_, _, file := checkParams(os.Args)
+	file.Close()
 
-	udpAddr, err := net.ResolveUDPAddr("udp", port)
+	binary := readFile()
+	encode := base64.StdEncoding.EncodeToString(binary)
+
+	udpAddr, err := net.ResolveUDPAddr("udp", ":3200")
 	checkError(err, "ResolveUDPAddr")
 
-	conn, err := net.ListenUDP("udp", udpAddr)
+	conn, err := net.DialUDP("udp", nil, udpAddr)
 	checkError(err, "ListenUDP")
 
-	conn.Write([]byte("Oi"))
+	conn.Write([]byte(encode))
+
 	os.Exit(0)
 }
