@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"encoding/base64"
 	"fmt"
-	//"github.com/google/gopacket"
 	"net"
 	"os"
 )
