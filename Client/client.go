@@ -10,35 +10,36 @@ import (
 
 func checkError(err error, msg string){
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Erro em " + msg + "\n", err.Error())
+		fmt.Fprintf(os.Stderr, "Error em " + msg + "\n", err.Error())
 		os.Exit(1)
 	}
 }
 
-func checkParams(args []string) (net.IP, string, *os.File) {
+func checkParams(args []string) (string, string) {
 	if len(args) != 4 {
-		fmt.Fprintf(os.Stderr, "Argumentos esperados: <hostname/ip> <porta> <arquivo> em %s\n", args[0])
+		fmt.Fprintf(os.Stderr, "Error: Argumentos esperados: <hostname/ip> <porta> <arquivo>")
 		os.Exit(1)
 	}
-	addr := net.ParseIP(args[1])
-	if addr == nil {
-		fmt.Fprintf(os.Stderr, "%s não é um hostname/ip válido.\n", args[1])
+
+	addr, err := net.ResolveIPAddr("ip", args[1]+args[2])
+	if err == nil {
+		fmt.Fprintf(os.Stderr, "Error: %s não é um hostname/ip válido.\n", args[1])
 		os.Exit(1)
 	}
-	ip := net.ParseIP(os.Args[1])
-	port := os.Args[2]
-	file, err := os.Open(os.Args[3])
-	checkError(err, "<arquivo> inválido")
-	return ip, port, file
+
+	ip := addr.String()
+	port := args[2]
+	return ip, port
 }
 
 func readFile() []byte {
-	file, err := os.Open("./go.png")
-	checkError(err, "file")
+	file, err := os.Open(os.Args[3])
+	checkError(err, "Open file")
 	defer file.Close()
 
 	fileInfo, _ := file.Stat()
 	fileSize := fileInfo.Size()
+	fmt.Println(fileSize)
 
 	bytes := make([]byte, fileSize)
 
@@ -49,13 +50,12 @@ func readFile() []byte {
 }
 
 func main() {
-	_, _, file := checkParams(os.Args)
-	file.Close()
+	_, port := checkParams(os.Args)
 
 	binary := readFile()
 	encode := base64.StdEncoding.EncodeToString(binary)
 
-	udpAddr, err := net.ResolveUDPAddr("udp", ":3200")
+	udpAddr, err := net.ResolveUDPAddr("udp", port)
 	checkError(err, "ResolveUDPAddr")
 
 	conn, err := net.DialUDP("udp", nil, udpAddr)
