@@ -1,23 +1,103 @@
 package main
+
 import (
-	"fmt"
-	"net"
 	"bufio"
+	"encoding/base64"
+	"fmt"
+	"io/ioutil"
+	"math"
+	"net"
+	"os"
+	"strconv"
 )
 
-func main() {
-	p :=  make([]byte, 2048)
-	conn, err := net.Dial("udp", "127.0.0.1:1234")
+
+func checkError(err error, msg string){
 	if err != nil {
-		fmt.Printf("Some error %v", err)
-		return
+		fmt.Fprintf(os.Stderr, "Error em " + msg + "\n", err.Error())
+		os.Exit(1)
 	}
-	fmt.Fprintf(conn, "Hi UDP Server, How are you doing?")
-	_, err = bufio.NewReader(conn).Read(p)
+}
+
+func checkParams(args []string) (string, string) {
+	if len(args) != 4 {
+		fmt.Fprintf(os.Stderr, "Error: Argumentos esperados: <hostname/ip> <porta> <arquivo>")
+		os.Exit(1)
+	}
+
+	addr, err := net.ResolveIPAddr("ip", args[1]+args[2])
 	if err == nil {
-		fmt.Printf("%s\n", p)
-	} else {
-		fmt.Printf("Some error %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error: %s não é um hostname/ip válido.\n", args[1])
+		os.Exit(1)
 	}
-	conn.Close()
+
+	ip := addr.String()
+	port := args[2]
+	return ip, port
+}
+
+func readFile() []byte {
+	file, err := os.Open(os.Args[3])
+	checkError(err, "Open file")
+	defer file.Close()
+
+	fileInfo, _ := file.Stat()
+	fileSize := fileInfo.Size()
+
+	//INICIO DA MODIFICAÇÃO PARA DIVIDIR O ARQUIVO EM PARTES E SALVAR AS PARTES NA PASTA LOCAL DO CLIENTE;
+	//MODIFICAÇÕES A SEREM FEITAS(FUNÇÃO SER COLOCADA NA CAMADA DE PROTOCOLOS || ENVIAR A PARTE DO ARQUIVO PARA O SERVIDOR POR CONEXÃO NO LUGAR DE SALVAR NA PASTA CLIENTE)
+	const filePartsSize = 512
+	totalPartsNum := uint64(math.Ceil(float64(fileSize) / float64(filePartsSize)))
+
+	fmt.Printf("Dividindo o arquivo em %d partes\n", totalPartsNum)
+
+	for i := uint64(0); i < totalPartsNum; i++{
+		partSize := int(math.Min(filePartsSize, float64(fileSize-int64(i*filePartsSize))))
+		partBuffer := make([]byte, partSize)
+
+		file.Read(partBuffer)
+
+		// write to disk
+		fileName := "Parte_" + strconv.FormatUint(i, 10)
+		_, err := os.Create(fileName)
+
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+
+		// write/save buffer to disk
+		ioutil.WriteFile(fileName, partBuffer, os.ModeAppend)
+
+		fmt.Println("Split to : ", fileName)
+	}
+
+	//FIM DA MODIFICAÇÃO
+
+	fmt.Println(fileSize)
+
+
+	bytes := make([]byte, fileSize)
+
+	bufferReader := bufio.NewReader(file)
+	bufferReader.Read(bytes)
+
+	return bytes
+}
+
+func main() {
+	_, port := checkParams(os.Args)
+
+	binary := readFile()
+	encode := base64.StdEncoding.EncodeToString(binary)
+
+	udpAddr, err := net.ResolveUDPAddr("udp", port)
+	checkError(err, "ResolveUDPAddr")
+
+	conn, err := net.DialUDP("udp", nil, udpAddr)
+	checkError(err, "ListenUDP")
+
+	conn.Write([]byte(encode))
+
+	os.Exit(0)
 }
