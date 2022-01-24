@@ -1,36 +1,56 @@
 package main
+
 import (
+	"encoding/base64"
 	"fmt"
+	"io/ioutil"
 	"net"
+	"os"
+	"strings"
 )
 
-
-func sendResponse(conn *net.UDPConn, addr *net.UDPAddr) {
-	_,err := conn.WriteToUDP([]byte("From server: Hello I got your message "), addr)
+func checkError(err error, msg string){
 	if err != nil {
-		fmt.Printf("Couldn't send response %v", err)
+		fmt.Fprintf(os.Stderr, "Erro em " + msg + "\n", err.Error())
+		os.Exit(1)
 	}
 }
 
+func checkParams(args []string) (string, string) {
+	if len(args) != 3 {
+		fmt.Fprintf(os.Stderr, "Error: Argumentos esperados: <porta> <diretório>")
+		os.Exit(1)
+	}
+	port := os.Args[1]
+	dir := os.Args[2]
+	return port, dir
+}
+
+func handleClient(conn *net.UDPConn, dir string)  {
+	var netBuffer [524]byte
+	var fileBuffer [524]byte
+
+	size, err := conn.Read(netBuffer[0:])
+	fmt.Println(size)
+	checkError(err, "Read")
+
+	_, err = base64.StdEncoding.Decode(fileBuffer[0:size], netBuffer[0:size])
+	checkError(err, "Decode")
+
+	dirFile := strings.TrimSpace(dir) + "file.png"
+	err = ioutil.WriteFile(dirFile, fileBuffer[0:size], 0666)
+	checkError(err, "WriteFile")
+	os.Exit(0)
+}
 
 func main() {
-	p := make([]byte, 2048)
-	addr := net.UDPAddr{
-		Port: 1234,
-		IP: net.ParseIP("127.0.0.1"),
-	}
-	ser, err := net.ListenUDP("udp", &addr)
-	if err != nil {
-		fmt.Printf("Some error %v\n", err)
-		return
-	}
+	port, dir := checkParams(os.Args)
+
+	udpAddr, _ := net.ResolveUDPAddr("udp", port)
+
+	conn, _ := net.ListenUDP("udp", udpAddr)
+
 	for {
-		_,remoteaddr,err := ser.ReadFromUDP(p)
-		fmt.Printf("Read a message from %v %s \n", remoteaddr, p)
-		if err !=  nil {
-			fmt.Printf("Some error  %v", err)
-			continue
-		}
-		go sendResponse(ser, remoteaddr)
+		handleClient(conn, dir)
 	}
 }
