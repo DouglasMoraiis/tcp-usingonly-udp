@@ -6,8 +6,11 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 )
+
+var cont = uint64(0)
 
 func checkError(err error, msg string){
 	if err != nil {
@@ -37,10 +40,15 @@ func handleClient(conn *net.UDPConn, dir string)  {
 	_, err = base64.StdEncoding.Decode(fileBuffer[0:size], netBuffer[0:size])
 	checkError(err, "Decode")
 
-	dirFile := strings.TrimSpace(dir) + "file.png"
+	dirFile := strings.TrimSpace(dir) + ("file" + strconv.FormatUint(cont, 10) + ".png")
+	cont++
 	err = ioutil.WriteFile(dirFile, fileBuffer[0:size], 0666)
 	checkError(err, "WriteFile")
-	os.Exit(0)
+
+	if size < 200{
+		os.Exit(0)
+	}
+	//os.Exit(0)
 }
 
 func main() {
