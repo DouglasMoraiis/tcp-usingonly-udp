@@ -1,4 +1,4 @@
-package Protocol
+package protocol
 
 import (
 	"encoding/binary"
@@ -12,8 +12,6 @@ type DataLayer struct {
 	Flags uint16
 	Payload []byte
 }
-
-
 
 var DataLayerType = gopacket.RegisterLayerType(
 	2001,
