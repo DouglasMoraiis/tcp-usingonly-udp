@@ -1,9 +1,13 @@
 package main
 
 import (
+	"Client/protocol"
 	"bufio"
+	"bytes"
 	"encoding/base64"
 	"fmt"
+	"github.com/google/gopacket"
+	"io/ioutil"
 	"net"
 	"os"
 )
@@ -49,11 +53,73 @@ func readFile() []byte {
 	return bytes
 }
 
-func main() {
-	_, port := checkParams(os.Args)
+func sendPacket(packet gopacket.Packet, conn *net.UDPConn) {
+	// VERIFICAR O TIPO DO PACOTE DE ACORDO COM A FLAG:
+	// CLIENTE TEM 3 CASOS DE ENVIO:
+	// se SYN: Envio da Solicita de criação da conexão, Sem payload;
+	// se ACK: Só acontece na primeira vez que vai começar a enviar pacote de arquivo, Com payload;
+	// se Nenhum: Apenas envio de pacotes de arquivo, Com payload
+	// se FIN: Solicita o encerramento da conexão, Sem payload;
+}
 
+func recvPacket(conn *net.UDPConn) *protocol.DataLayer {
+	// VERIFICAR O TIPO DO PACOTE DE ACORDO COM A FLAG:
+	// CLIENTE TEM 3 CASOS DE RECEBIMENTO
+	// se SYN e ACK: servidor criou a conexão e definiu IdConnection, Sem payload;
+	// se só ACK: Confirmação que o pacote foi recebido, Sem payload;
+	// se FIN e ACK: O pacote de encerramento de conexão chegou! Sem payload, encerrar client!
+
+	result, err := ioutil.ReadAll(conn)
+	checkError(err, "ReadAll")
+
+
+	//ESSA PARTE AQUI É SÓ PRA DECODIFICAÇÃO DO PACOTE QUE CHEGOU ...
+	packet := gopacket.NewPacket(
+		result,
+		protocol.DataLayerType,
+		gopacket.Default,
+	)
+
+	decodePacket := packet.Layer(protocol.DataLayerType)
+	if decodePacket == nil {
+		fmt.Fprintf(os.Stderr, "decodePacket is nil!", error.Error)
+	}
+	content := decodePacket.(*protocol.DataLayer)
+
+	//printPacketRecv()
+
+	return content
+}
+
+func sendPayload(conn *net.UDPConn) {
 	binary := readFile()
 	encode := base64.StdEncoding.EncodeToString(binary)
+	for {
+		//sendPacket(packet, conn)
+		conn.Write([]byte(encode))
+	}
+
+}
+
+func handleServerConnection(conn *net.UDPConn) {
+	var buffer bytes.Buffer
+
+	// createDataBytes(header, payload) - AINDA VOU IMPLEMENTAR
+
+	var packet = gopacket.NewPacket(
+		buffer.Bytes(),
+		protocol.DataLayerType,
+		gopacket.Default,
+	)
+
+	sendPacket(packet, conn) // INIT
+	var packetContent = recvPacket(conn) // ACK INIT VEM DO SERVIDOR
+	fmt.Println(packetContent.IdConnection) // IGNORAR ESSA LINHA
+	sendPayload(conn) // ACK PARA O SERVER E PRIMEIRO PAYLOAD
+}
+
+func main() {
+	_, port := checkParams(os.Args)
 
 	udpAddr, err := net.ResolveUDPAddr("udp", port)
 	checkError(err, "ResolveUDPAddr")
@@ -61,7 +127,7 @@ func main() {
 	conn, err := net.DialUDP("udp", nil, udpAddr)
 	checkError(err, "ListenUDP")
 
-	conn.Write([]byte(encode))
+	handleServerConnection(conn)
 
 	os.Exit(0)
 }
