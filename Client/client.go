@@ -207,13 +207,11 @@ func createFirstPacket() gopacket.Packet {
 	return packet
 }
 
-func handleServerConnection(conn *net.UDPConn) {
+func handleServer(conn *net.UDPConn) {
 	packet := createFirstPacket()
-
 	sendPacket(packet, conn) // INIT
 	packetContent := recvPacket(conn) // ACK INIT VEM DO SERVIDOR
-	fmt.Println(packetContent.IdConnection) // IGNORAR ESSA LINHA
-
+	fmt.Println(packetContent.AckNumber)
 	sendPayload(conn) // ACK PARA O SERVER E PRIMEIRO PAYLOAD
 }
 
@@ -226,7 +224,7 @@ func main() {
 	conn, err := net.DialUDP("udp", nil, udpAddr)
 	checkError(err, "ListenUDP")
 
-	handleServerConnection(conn)
+	handleServer(conn)
 
 	os.Exit(0)
 }
