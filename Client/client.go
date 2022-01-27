@@ -87,7 +87,7 @@ func parseFlags(isAck bool, isSyn bool, isFin bool) uint16 {
 	return flags
 }
 
-func printPacketRecv(content *protocol.DataLayer) {
+func printPacket(prefix string, content *protocol.DataLayer) {
 	isAck, isSyn, isFin := readFlags(content.Flags)
 	var strAck = ""
 	var strSyn = ""
@@ -103,7 +103,8 @@ func printPacketRecv(content *protocol.DataLayer) {
 		strFin = " FIN"
 	}
 
-	fmt.Println("RECV ",
+	fmt.Println(
+		prefix,
 		content.SequenceNumber,
 		content.AckNumber,
 		content.IdConnection,
@@ -146,7 +147,7 @@ func recvPacket(conn *net.UDPConn) *protocol.DataLayer {
 	}
 	content := decodePacket.(*protocol.DataLayer)
 
-	printPacketRecv(content)
+	printPacket("RECV ", content)
 
 	return content
 }
