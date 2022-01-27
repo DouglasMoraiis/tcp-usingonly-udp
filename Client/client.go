@@ -8,7 +8,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/google/gopacket"
-	"io/ioutil"
 	"net"
 	"os"
 )
@@ -138,14 +137,15 @@ func recvPacket(conn *net.UDPConn) *protocol.DataLayer {
 	// CLIENTE TEM 3 CASOS DE RECEBIMENTO
 	// se SYN e ACK: servidor criou a conexão e definiu IdConnection, Sem payload;
 	// se só ACK: Confirmação que o pacote foi recebido, Sem payload;
-	// se FIN e ACK: O pacote de encerramento de conexão chegou! Sem payload, encerrar client!
+	// se FIN e ACK: O pacote de encerramento de conexão chegou! Sem payload, encerrar aplicação os.Exit(0)!
 
-	result, err := ioutil.ReadAll(conn)
-	checkError(err, "ReadAll")
+	var result [524]byte
+	_, err := conn.Read(result[:])
+	checkError(err, "Read")
 
 	// DECODIFICAÇÃO DO PACOTE QUE CHEGOU ...
 	packet := gopacket.NewPacket(
-		result,
+		result[:],
 		protocol.DataLayerType,
 		gopacket.Default,
 	)
@@ -210,9 +210,10 @@ func createFirstPacket() gopacket.Packet {
 func handleServer(conn *net.UDPConn) {
 	packet := createFirstPacket()
 	sendPacket(packet, conn) // INIT
-	packetContent := recvPacket(conn) // ACK INIT VEM DO SERVIDOR
-	fmt.Println(packetContent.AckNumber)
-	sendPayload(conn) // ACK PARA O SERVER E PRIMEIRO PAYLOAD
+	//packetContent := recvPacket(conn) // ACK INIT VEM DO SERVIDOR
+	//fmt.Println(packetContent.AckNumber)
+	//sendPayload(conn) // ACK PARA O SERVER E PRIMEIRO PAYLOAD
+	conn.Close()
 }
 
 func main() {
