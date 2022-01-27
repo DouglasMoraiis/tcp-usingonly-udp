@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/base64"
+	"encoding/binary"
 	"fmt"
 	"github.com/google/gopacket"
 	"io/ioutil"
@@ -115,12 +116,21 @@ func printPacket(prefix string, content *protocol.DataLayer) {
 }
 
 func sendPacket(packet gopacket.Packet, conn *net.UDPConn) {
+
 	// VERIFICAR O TIPO DO PACOTE DE ACORDO COM A FLAG:
 	// CLIENTE TEM 3 CASOS DE ENVIO:
 	// se SYN: Envio da Solicita de criação da conexão, Sem payload;
 	// se ACK: Só acontece na primeira vez que vai começar a enviar pacote de arquivo, Com payload;
 	// se Nenhum: Apenas envio de pacotes de arquivo, Com payload
 	// se FIN: Solicita o encerramento da conexão, Sem payload;
+
+	// PARTE USADA APENAS PARA IMPRIMIR NA TELA
+	decodePacket := packet.Layer(protocol.DataLayerType)
+	if decodePacket == nil {
+		fmt.Fprintf(os.Stderr, "decodePacket is nil!", error.Error)
+	}
+	content := decodePacket.(*protocol.DataLayer)
+	printPacket("SEND ", content)
 }
 
 func recvPacket(conn *net.UDPConn) *protocol.DataLayer {
@@ -133,20 +143,19 @@ func recvPacket(conn *net.UDPConn) *protocol.DataLayer {
 	result, err := ioutil.ReadAll(conn)
 	checkError(err, "ReadAll")
 
-
-	//ESSA PARTE AQUI É SÓ PRA DECODIFICAÇÃO DO PACOTE QUE CHEGOU ...
+	// DECODIFICAÇÃO DO PACOTE QUE CHEGOU ...
 	packet := gopacket.NewPacket(
 		result,
 		protocol.DataLayerType,
 		gopacket.Default,
 	)
 
+	// IMPRESSÃO DOS DADOS DO PACOTE QUE CHEGOU ...
 	decodePacket := packet.Layer(protocol.DataLayerType)
 	if decodePacket == nil {
 		fmt.Fprintf(os.Stderr, "decodePacket is nil!", error.Error)
 	}
 	content := decodePacket.(*protocol.DataLayer)
-
 	printPacket("RECV ", content)
 
 	return content
@@ -161,10 +170,33 @@ func sendPayload(conn *net.UDPConn) {
 	}
 }
 
-func handleServerConnection(conn *net.UDPConn) {
+func createFirstPacket() gopacket.Packet {
 	var buffer bytes.Buffer
 
-	// createDataBytes(header, payload) - AINDA VOU IMPLEMENTAR
+	// DADOS DO PRIMEIRO PACOTE
+	var seqNum uint32 = 12345
+	var ackNum uint32 = 0
+	var idCon uint16 = 0
+	var flags = parseFlags(false, true, false)
+	var payload []byte = nil
+
+	var seqNumBytes = make([]byte, 4)
+	var ackNumBytes = make([]byte, 4)
+	var idConBytes = make([]byte, 2)
+	var flagsBytes = make([]byte, 2)
+
+	// PARSE DADOS PARA []BYTE
+	binary.BigEndian.PutUint32(seqNumBytes, seqNum)
+	binary.BigEndian.PutUint32(ackNumBytes, ackNum)
+	binary.BigEndian.PutUint16(idConBytes, idCon)
+	binary.BigEndian.PutUint16(flagsBytes, flags)
+
+	// JUNTA TODOS EM UM UNICO []BYTE
+	buffer.Write(seqNumBytes)
+	buffer.Write(ackNumBytes)
+	buffer.Write(idConBytes)
+	buffer.Write(flagsBytes)
+	buffer.Write(payload)
 
 	var packet = gopacket.NewPacket(
 		buffer.Bytes(),
@@ -172,9 +204,16 @@ func handleServerConnection(conn *net.UDPConn) {
 		gopacket.Default,
 	)
 
+	return packet
+}
+
+func handleServerConnection(conn *net.UDPConn) {
+	packet := createFirstPacket()
+
 	sendPacket(packet, conn) // INIT
-	var packetContent = recvPacket(conn) // ACK INIT VEM DO SERVIDOR
+	packetContent := recvPacket(conn) // ACK INIT VEM DO SERVIDOR
 	fmt.Println(packetContent.IdConnection) // IGNORAR ESSA LINHA
+
 	sendPayload(conn) // ACK PARA O SERVER E PRIMEIRO PAYLOAD
 }
 
