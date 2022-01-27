@@ -53,6 +53,66 @@ func readFile() []byte {
 	return bytes
 }
 
+func readFlags(flags uint16) (bool, bool, bool) {
+	var ack, syn, fin uint16
+	var isAck, isSyn, isFin bool
+	ack = flags & (1 << 2)
+	syn = flags & (1 << 1)
+	fin = flags & (1)
+
+	if ack != 0 {
+		isAck = true
+	}
+	if syn != 0 {
+		isSyn = true
+	}
+	if fin != 0 {
+		isFin = true
+	}
+	return isAck, isSyn, isFin
+}
+
+func parseFlags(isAck bool, isSyn bool, isFin bool) uint16 {
+	var flags uint16 = 0
+	if isAck {
+		flags = flags | (1 << 2)
+	}
+	if isSyn {
+		flags = flags | (1 << 1)
+	}
+	if isFin {
+		flags = flags | (1)
+	}
+
+	return flags
+}
+
+func printPacketRecv(content *protocol.DataLayer) {
+	isAck, isSyn, isFin := readFlags(content.Flags)
+	var strAck = ""
+	var strSyn = ""
+	var strFin = ""
+
+	if isAck {
+		strAck = " ACK"
+	}
+	if isSyn {
+		strSyn = " SYN"
+	}
+	if isFin {
+		strFin = " FIN"
+	}
+
+	fmt.Println("RECV ",
+		content.SequenceNumber,
+		content.AckNumber,
+		content.IdConnection,
+		strAck,
+		strSyn,
+		strFin,
+	)
+}
+
 func sendPacket(packet gopacket.Packet, conn *net.UDPConn) {
 	// VERIFICAR O TIPO DO PACOTE DE ACORDO COM A FLAG:
 	// CLIENTE TEM 3 CASOS DE ENVIO:
@@ -86,7 +146,7 @@ func recvPacket(conn *net.UDPConn) *protocol.DataLayer {
 	}
 	content := decodePacket.(*protocol.DataLayer)
 
-	//printPacketRecv()
+	printPacketRecv(content)
 
 	return content
 }
@@ -98,7 +158,6 @@ func sendPayload(conn *net.UDPConn) {
 		//sendPacket(packet, conn)
 		conn.Write([]byte(encode))
 	}
-
 }
 
 func handleServerConnection(conn *net.UDPConn) {
