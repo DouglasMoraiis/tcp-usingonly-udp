@@ -94,13 +94,13 @@ func printPacket(prefix string, content *protocol.DataLayer) {
 	var strFin = ""
 
 	if isAck {
-		strAck = " ACK"
+		strAck = "ACK"
 	}
 	if isSyn {
-		strSyn = " SYN"
+		strSyn = "SYN"
 	}
 	if isFin {
-		strFin = " FIN"
+		strFin = "FIN"
 	}
 
 	fmt.Println(
@@ -114,7 +114,21 @@ func printPacket(prefix string, content *protocol.DataLayer) {
 	)
 }
 
-func sendPacket(packet gopacket.Packet, conn *net.UDPConn) {
+func decodeDataInContent(buffer []byte) *protocol.DataLayer {
+	packet := gopacket.NewPacket(
+		buffer[0:],
+		protocol.DataLayerType,
+		gopacket.Default,
+	)
+	decodePacket := packet.Layer(protocol.DataLayerType)
+	if decodePacket == nil {
+		fmt.Fprintf(os.Stderr, "decodePacket is nil!", error.Error)
+	}
+	content := decodePacket.(*protocol.DataLayer)
+	return content
+}
+
+func sendPacket(packet gopacket.Packet, conn *net.UDPConn) *protocol.DataLayer {
 
 	// VERIFICAR O TIPO DO PACOTE DE ACORDO COM A FLAG:
 	// CLIENTE TEM 3 CASOS DE ENVIO:
@@ -129,7 +143,12 @@ func sendPacket(packet gopacket.Packet, conn *net.UDPConn) {
 		fmt.Fprintf(os.Stderr, "decodePacket is nil!", error.Error)
 	}
 	content := decodePacket.(*protocol.DataLayer)
-	printPacket("SEND ", content)
+
+	//ENVIANDO DADO PARA A CONEXÃO
+	_, err := conn.Write(packet.Data())
+	checkError(err, "conn.Write")
+
+	return content
 }
 
 func recvPacket(conn *net.UDPConn) *protocol.DataLayer {
@@ -144,19 +163,7 @@ func recvPacket(conn *net.UDPConn) *protocol.DataLayer {
 	checkError(err, "Read")
 
 	// DECODIFICAÇÃO DO PACOTE QUE CHEGOU ...
-	packet := gopacket.NewPacket(
-		result[:],
-		protocol.DataLayerType,
-		gopacket.Default,
-	)
-
-	// IMPRESSÃO DOS DADOS DO PACOTE QUE CHEGOU ...
-	decodePacket := packet.Layer(protocol.DataLayerType)
-	if decodePacket == nil {
-		fmt.Fprintf(os.Stderr, "decodePacket is nil!", error.Error)
-	}
-	content := decodePacket.(*protocol.DataLayer)
-	printPacket("RECV ", content)
+	content := decodeDataInContent(result[:])
 
 	return content
 }
@@ -204,15 +211,21 @@ func createFirstPacket() gopacket.Packet {
 		gopacket.Default,
 	)
 
+	fmt.Println(packet)
 	return packet
 }
 
 func handleServer(conn *net.UDPConn) {
 	packet := createFirstPacket()
-	sendPacket(packet, conn) // INIT
-	//packetContent := recvPacket(conn) // ACK INIT VEM DO SERVIDOR
-	//fmt.Println(packetContent.AckNumber)
-	//sendPayload(conn) // ACK PARA O SERVER E PRIMEIRO PAYLOAD
+
+	content := sendPacket(packet, conn) // INIT
+	printPacket("SEND", content)
+
+	content = recvPacket(conn)
+	printPacket("RECV", content)
+
+	// COMEÇA A ENVIAR O PAYLOAD
+
 	conn.Close()
 }
 

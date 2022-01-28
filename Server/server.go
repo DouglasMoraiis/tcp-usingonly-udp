@@ -66,13 +66,13 @@ func printPacket(prefix string, content *protocol.DataLayer) {
 	var strFin = ""
 
 	if isAck {
-		strAck = " ACK"
+		strAck = "ACK"
 	}
 	if isSyn {
-		strSyn = " SYN"
+		strSyn = "SYN"
 	}
 	if isFin {
-		strFin = " FIN"
+		strFin = "FIN"
 	}
 
 	fmt.Println(
@@ -86,7 +86,21 @@ func printPacket(prefix string, content *protocol.DataLayer) {
 	)
 }
 
-func sendPacket(packet gopacket.Packet, conn *net.UDPConn) {
+func decodeDataInContent(buffer []byte) *protocol.DataLayer {
+	packet := gopacket.NewPacket(
+		buffer[0:],
+		protocol.DataLayerType,
+		gopacket.Default,
+	)
+	decodePacket := packet.Layer(protocol.DataLayerType)
+	if decodePacket == nil {
+		fmt.Fprintf(os.Stderr, "decodePacket is nil!", error.Error)
+	}
+	content := decodePacket.(*protocol.DataLayer)
+	return content
+}
+
+func sendPacket(packet gopacket.Packet, conn *net.UDPConn) *protocol.DataLayer {
 	// VERIFICAR O TIPO DO PACOTE DE ACORDO COM A FLAG:
 	// SERVIDOR TEM 3 CASOS DE ENVIO
 	// se SYN e ACK: Servidor criou a conexão e definiu IdConnection, Sem payload;
@@ -99,8 +113,14 @@ func sendPacket(packet gopacket.Packet, conn *net.UDPConn) {
 		fmt.Fprintf(os.Stderr, "decodePacket is nil!", error.Error)
 	}
 	content := decodePacket.(*protocol.DataLayer)
-	printPacket("SEND ", content)
+
+	//ENVIANDO DADO PARA A CONEXÃO
+	_, err := conn.Write(packet.Data())
+	checkError(err, "conn.Write")
+
+	return content
 }
+
 
 func recvPacket(conn *net.UDPConn) *protocol.DataLayer {
 	// VERIFICAR O TIPO DO PACOTE DE ACORDO COM A FLAG:
@@ -111,33 +131,24 @@ func recvPacket(conn *net.UDPConn) *protocol.DataLayer {
 	// se FIN: Solicitação de encerramento de conexão! Sem payload, encerrar conexão (conn.close())!
 
 	var result [524]byte
-	_, err := conn.Read(result[:])
+	fmt.Println("Recebendo dados...")
+	_, err := conn.Read(result[0:])
 	checkError(err, "Read")
 
 	// DECODIFICAÇÃO DO PACOTE QUE CHEGOU ...
-	packet := gopacket.NewPacket(
-		result[:],
-		protocol.DataLayerType,
-		gopacket.Default,
-	)
-
-	// IMPRESSÃO DOS DADOS DO PACOTE QUE CHEGOU ...
-	decodePacket := packet.Layer(protocol.DataLayerType)
-	if decodePacket == nil {
-		fmt.Fprintf(os.Stderr, "decodePacket is nil!", error.Error)
-	}
-	content := decodePacket.(*protocol.DataLayer)
-	printPacket("RECV ", content)
+	content := decodeDataInContent(result[0:])
 
 	return content
 }
 
 func handleClient(conn *net.UDPConn, dir string)  {
-	firstContentPacket := recvPacket(conn)
-	fmt.Println(firstContentPacket.SequenceNumber)
-	conn.Close()
+	content := recvPacket(conn)
+	printPacket("RECV", content)
 
-	/*	var netBuffer [524]byte
+	// AINDA FALTA CRIAR O PACKET DO SEND ACK DE CONEXAO
+	//content = sendPacket(packet, conn)
+
+/*	var netBuffer [524]byte
 	var fileBuffer [524]byte
 
 	size, err := conn.Read(netBuffer[0:])
@@ -159,7 +170,5 @@ func main() {
 	udpAddr, _ := net.ResolveUDPAddr("udp", port)
 	conn, _ := net.ListenUDP("udp", udpAddr)
 
-	for {
-		handleClient(conn, dir)
-	}
+	handleClient(conn, dir)
 }
