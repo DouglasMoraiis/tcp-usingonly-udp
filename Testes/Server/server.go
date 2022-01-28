@@ -3,7 +3,9 @@ package main
 import (
 	"encoding/base64"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"log"
 	"net"
 	"os"
 	"strconv"
@@ -29,6 +31,16 @@ func checkParams(args []string) (string, string) {
 	return port, dir
 }
 
+func DeleteAllFilesParts(){
+	for i := uint64(0); i < cont; i++{
+		e := os.Remove("file"+strconv.FormatUint(i,10)+".png")
+		fmt.Println("conferindo remoção do arquivo ", e)
+		if e != nil{
+			log.Fatal(e)
+		}
+	}
+}
+
 func handleClient(conn *net.UDPConn, dir string)  {
 	var netBuffer [524]byte
 	var fileBuffer [524]byte
@@ -46,6 +58,30 @@ func handleClient(conn *net.UDPConn, dir string)  {
 	checkError(err, "WriteFile")
 
 	if size < 200{
+		unionFiles, err := os.Create("unionFiles.png")
+		if err != nil{
+			log.Fatal(err)
+		}
+		defer unionFiles.Close()
+
+		for i := uint64(0); i < cont; i++{
+			func(){
+				file, err := os.Open("file" + strconv.FormatUint(i,10) +".png")
+				if err != nil{
+					log.Fatal(err)
+				}
+				defer file.Close()
+
+				ArquivoFinalEuAcho, err := io.Copy(unionFiles, file)
+				if err != nil{
+					log.Fatal(err)
+				}
+				fmt.Println("arquivo final eu acho bytes: %d\n", ArquivoFinalEuAcho)
+			}()
+		}
+		fmt.Println("UnionFiles.txt bytes: %d\n", unionFiles)
+
+		DeleteAllFilesParts()
 		os.Exit(0)
 	}
 	//os.Exit(0)
