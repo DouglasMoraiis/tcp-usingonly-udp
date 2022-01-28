@@ -71,15 +71,9 @@ func readFile() []byte {
 		conn, err := net.DialUDP("udp", nil, udpAddr)
 		checkError(err, "ListenUDP")
 
-		if i == totalPartsNum{
-			conn.Write([]byte("fim"))
+		conn.Write([]byte(encode))
 
-			conn.Close()
-		}else{
-			conn.Write([]byte(encode))
-
-			conn.Close()
-		}
+		conn.Close()
 
 /*
 		// write to disk
