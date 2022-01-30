@@ -57,7 +57,7 @@ func handleClient(conn *net.UDPConn, dir string)  {
 	err = ioutil.WriteFile(dirFile, fileBuffer[0:size], 0666)
 	checkError(err, "WriteFile")
 
-	if size < 200{
+	if size < 200 {
 		unionFiles, err := os.Create("unionFiles.png")
 		if err != nil{
 			log.Fatal(err)

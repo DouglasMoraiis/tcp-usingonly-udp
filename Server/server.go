@@ -2,11 +2,21 @@ package main
 
 import (
 	"Client/protocol"
+	"bytes"
+	"encoding/binary"
 	"fmt"
 	"github.com/google/gopacket"
+	"io/ioutil"
 	"net"
 	"os"
+	"strconv"
+	"strings"
 )
+
+// GLOBAL
+var QTD_CONNECTIONS uint16 = 0
+var EXTENSION_FILE string
+var FILE []byte
 
 func checkError(err error, msg string){
 	if err != nil {
@@ -20,8 +30,8 @@ func checkParams(args []string) (string, string) {
 		fmt.Fprintf(os.Stderr, "Error: Argumentos esperados: <porta> <diretório>")
 		os.Exit(1)
 	}
-	port := os.Args[1]
-	dir := os.Args[2]
+	port := ":" + args[1]
+	dir := args[2]
 	return port, dir
 }
 
@@ -86,7 +96,7 @@ func printPacket(prefix string, content *protocol.DataLayer) {
 	)
 }
 
-func decodeDataInContent(buffer []byte) *protocol.DataLayer {
+func decodeBytesInContent(buffer []byte) *protocol.DataLayer {
 	packet := gopacket.NewPacket(
 		buffer[0:],
 		protocol.DataLayerType,
@@ -100,14 +110,38 @@ func decodeDataInContent(buffer []byte) *protocol.DataLayer {
 	return content
 }
 
-func sendPacket(packet gopacket.Packet, conn *net.UDPConn) *protocol.DataLayer {
-	// VERIFICAR O TIPO DO PACOTE DE ACORDO COM A FLAG:
-	// SERVIDOR TEM 3 CASOS DE ENVIO
-	// se SYN e ACK: Servidor criou a conexão e definiu IdConnection, Sem payload;
-	// se só ACK: Confirmação que o pacote foi recebido, Sem payload;
-	// se FIN e ACK: O pacote de encerramento de conexão chegou! Sem payload, encerrar aplicação!
+func encodeDataInPacket(seqNum uint32, ackNum uint32, idCon uint16, flags uint16, payload []byte) gopacket.Packet {
+	var buffer bytes.Buffer
 
-	// PARTE USADA APENAS PARA IMPRIMIR NA TELA
+	var seqNumBytes = make([]byte, 4)
+	var ackNumBytes = make([]byte, 4)
+	var idConBytes = make([]byte, 2)
+	var flagsBytes = make([]byte, 2)
+
+	// PARSE DADOS PARA []BYTE
+	binary.BigEndian.PutUint32(seqNumBytes, seqNum)
+	binary.BigEndian.PutUint32(ackNumBytes, ackNum)
+	binary.BigEndian.PutUint16(idConBytes, idCon)
+	binary.BigEndian.PutUint16(flagsBytes, flags)
+
+	// JUNTA TODOS EM UM UNICO []BYTE
+	buffer.Write(seqNumBytes)
+	buffer.Write(ackNumBytes)
+	buffer.Write(idConBytes)
+	buffer.Write(flagsBytes)
+	buffer.Write(payload)
+
+	var packet = gopacket.NewPacket(
+		buffer.Bytes(),
+		protocol.DataLayerType,
+		gopacket.Default,
+	)
+
+	return packet
+}
+
+func sendPacket(packet gopacket.Packet, conn *net.UDPConn, receiver *net.UDPAddr) *protocol.DataLayer {
+
 	decodePacket := packet.Layer(protocol.DataLayerType)
 	if decodePacket == nil {
 		fmt.Fprintf(os.Stderr, "decodePacket is nil!", error.Error)
@@ -115,53 +149,128 @@ func sendPacket(packet gopacket.Packet, conn *net.UDPConn) *protocol.DataLayer {
 	content := decodePacket.(*protocol.DataLayer)
 
 	//ENVIANDO DADO PARA A CONEXÃO
-	_, err := conn.Write(packet.Data())
+	_, err := conn.WriteToUDP(packet.Data(), receiver )
 	checkError(err, "conn.Write")
 
 	return content
 }
 
-
-func recvPacket(conn *net.UDPConn) *protocol.DataLayer {
-	// VERIFICAR O TIPO DO PACOTE DE ACORDO COM A FLAG:
-	// SERVIDOR TEM 3 CASOS DE RECEBIMENTO
-	// se SYN: Cliente solicitou uma nova conexão, Sem payload;
-	// se Nenhum: Cliente enviou pacote de arquivo, Com payload;
-	// se ACK: Confirmação que o pacote de criação de conexão chegou, Já vem com payload ;
-	// se FIN: Solicitação de encerramento de conexão! Sem payload, encerrar conexão (conn.close())!
+func recvPacket(conn *net.UDPConn) (*protocol.DataLayer, *net.UDPAddr) {
 
 	var result [524]byte
-	fmt.Println("Recebendo dados...")
-	_, err := conn.Read(result[0:])
+	size, address, err := conn.ReadFromUDP(result[0:])
 	checkError(err, "Read")
 
 	// DECODIFICAÇÃO DO PACOTE QUE CHEGOU ...
-	content := decodeDataInContent(result[0:])
+	content := decodeBytesInContent(result[0:size])
 
-	return content
+	return content, address
+}
+
+func createFirstAckPacket(previousContent *protocol.DataLayer, IDConn *uint16) gopacket.Packet {
+	QTD_CONNECTIONS++
+	*IDConn = QTD_CONNECTIONS
+
+	var buffer bytes.Buffer
+
+	// DADOS DO PRIMEIRO PACOTE
+	var seqNum uint32 = 4321
+	var ackNum = previousContent.SequenceNumber + 1
+	var idCon = *IDConn
+	var flags = parseFlags(true, true, false)
+	var payload []byte = nil
+
+	var seqNumBytes = make([]byte, 4)
+	var ackNumBytes = make([]byte, 4)
+	var idConBytes = make([]byte, 2)
+	var flagsBytes = make([]byte, 2)
+
+	// PARSE DADOS PARA []BYTE
+	binary.BigEndian.PutUint32(seqNumBytes, seqNum)
+	binary.BigEndian.PutUint32(ackNumBytes, ackNum)
+	binary.BigEndian.PutUint16(idConBytes, idCon)
+	binary.BigEndian.PutUint16(flagsBytes, flags)
+
+	// JUNTA TODOS EM UM UNICO []BYTE
+	buffer.Write(seqNumBytes)
+	buffer.Write(ackNumBytes)
+	buffer.Write(idConBytes)
+	buffer.Write(flagsBytes)
+	buffer.Write(payload)
+
+	var packet = gopacket.NewPacket(
+		buffer.Bytes(),
+		protocol.DataLayerType,
+		gopacket.Default,
+	)
+
+	return packet
 }
 
 func handleClient(conn *net.UDPConn, dir string)  {
-	content := recvPacket(conn)
-	printPacket("RECV", content)
+	var IDConn uint16 = 0
 
-	// AINDA FALTA CRIAR O PACKET DO SEND ACK DE CONEXAO
-	//content = sendPacket(packet, conn)
+	for {
+		content, address := recvPacket(conn)
+		printPacket("RECV", content)
 
-/*	var netBuffer [524]byte
-	var fileBuffer [524]byte
+		isAck, isSyn, isFin := readFlags(content.Flags)
+		if isSyn {
 
-	size, err := conn.Read(netBuffer[0:])
-	fmt.Println(size)
-	checkError(err, "Read")
+			packet := createFirstAckPacket(content, &IDConn)
+			fmt.Println("UM PACOTE SYN FOI RECEBIDO! CRIANDO CONEXÃO!")
+			newContent := sendPacket(packet, conn, address)
+			printPacket("SEND", newContent)
 
-	_, err = base64.StdEncoding.Decode(fileBuffer[0:size], netBuffer[0:size])
-	checkError(err, "Decode")
+		} else if isAck || (!isAck && !isSyn && !isFin) {
+			var seqNum uint32 = 4322
+			var ackNum = content.SequenceNumber + uint32(len(content.Payload))
+			var idCon = IDConn
+			var flags = parseFlags(true, false, false)
+			var payload []byte
 
-	dirFile := strings.TrimSpace(dir) + "file.png"
-	err = ioutil.WriteFile(dirFile, fileBuffer[0:size], 0666)
+			// PACOTE COM EXTENSÃO DO ARQUIVO RECEBIDO
+			if isAck {
+				EXTENSION_FILE = strings.TrimSpace(string(content.LayerPayload()))
+			} else {
+				saveInFILE(content.LayerPayload())
+			}
+			packet := encodeDataInPacket(seqNum, ackNum, idCon, flags, payload)
+
+			newContent := sendPacket(packet, conn, address)
+			printPacket("SEND", newContent)
+
+		} else if isFin {
+			var seqNum uint32 = 4322
+			var ackNum uint32 = 0
+			var idCon = IDConn
+			var flags = parseFlags(true, false, true)
+			var payload []byte
+
+			packet := encodeDataInPacket(seqNum, ackNum, idCon, flags, payload)
+
+			exportFileLocalStorage(IDConn, dir)
+
+			newContent := sendPacket(packet, conn, address)
+			printPacket("SEND", newContent)
+		}
+	}
+
+	// se Nenhum: Cliente enviou pacote de arquivo, Com payload;
+	// se ACK: Confirmação que o pacote de criação de conexão chegou, Já vem com payload ;
+	// se FIN: Solicitação de encerramento de conexão! Sem payload, encerrar conexão (conn.close())!
+}
+
+func exportFileLocalStorage(IDConn uint16, dir string) {
+	fileName := strconv.Itoa(int(IDConn))
+	dirFile := strings.TrimSpace(dir) + fileName + EXTENSION_FILE
+
+	err := ioutil.WriteFile(dirFile, FILE[0:], 0666)
 	checkError(err, "WriteFile")
-	os.Exit(0)*/
+}
+
+func saveInFILE(payload []byte) {
+	FILE = append(FILE, payload...)
 }
 
 func main() {
@@ -169,6 +278,8 @@ func main() {
 
 	udpAddr, _ := net.ResolveUDPAddr("udp", port)
 	conn, _ := net.ListenUDP("udp", udpAddr)
+	fmt.Println("SERVIDOR INICIADO")
 
 	handleClient(conn, dir)
+
 }

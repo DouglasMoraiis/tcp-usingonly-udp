@@ -30,19 +30,21 @@ func (d DataLayer) LayerContents() []byte {
 	var ackNumberBytes = make([]byte, 4)
 	var idConnectionBytes = make([]byte, 2)
 	var flagsBytes = make([]byte, 2)
+	var payload = d.Payload
 
 	binary.BigEndian.PutUint32(sequenceNumberBytes, d.SequenceNumber)
 	binary.BigEndian.PutUint32(ackNumberBytes, d.AckNumber)
 	binary.BigEndian.PutUint16(idConnectionBytes, d.IdConnection)
 	binary.BigEndian.PutUint16(flagsBytes, d.Flags)
 
-	var header []byte
-	header = append(sequenceNumberBytes)
-	header = append(ackNumberBytes)
-	header = append(idConnectionBytes)
-	header = append(flagsBytes)
+	var content []byte
+	content = append(sequenceNumberBytes)
+	content = append(ackNumberBytes)
+	content = append(idConnectionBytes)
+	content = append(flagsBytes)
+	content = append(payload)
 
-	return header
+	return content
 }
 
 func (d DataLayer) LayerPayload() []byte {
@@ -56,8 +58,8 @@ func decodeDataLayer(data []byte, p gopacket.PacketBuilder) error {
 	var flags = binary.BigEndian.Uint16(data[10:12])
 	var payload []byte = nil
 
-	if len(data) >= 13 {
-		payload = data[13:]
+	if len(data) >= 12 {
+		payload = data[12:]
 	}
 
 	p.AddLayer(&DataLayer{
