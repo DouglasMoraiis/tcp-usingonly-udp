@@ -24,4 +24,4 @@ Execute o arquivo `cliente.go`:
 go run client/client.go <ip/hostname> <porta> <arquivo>
 ```
 Pronto a comunicação foi efetuada e o arquivo foi enviado para a pasta destino definida no servidor.
-O cliente finalizou, mas o servidor ainda aguarda novas conexões.
+O cliente finalizou, mas o servidor ainda aguarda novas conexões, para finalizar aperte `Ctrl + C`.
