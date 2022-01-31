@@ -1,7 +1,7 @@
 package main
 
 import (
-	"Protocol/Protocol"
+	"../protocol"
 	"bufio"
 	"bytes"
 	"encoding/binary"
@@ -80,7 +80,7 @@ func parseFlags(isAck bool, isSyn bool, isFin bool) uint16 {
 	return flags
 }
 
-func printPacket(prefix string, content *Protocol.DataLayer) {
+func printPacket(prefix string, content *protocol.DataLayer) {
 	isAck, isSyn, isFin := readFlags(content.Flags)
 	var strAck = ""
 	var strSyn = ""
@@ -107,17 +107,17 @@ func printPacket(prefix string, content *Protocol.DataLayer) {
 	)
 }
 
-func decodeBytesInContent(buffer []byte) *Protocol.DataLayer {
+func decodeBytesInContent(buffer []byte) *protocol.DataLayer {
 	packet := gopacket.NewPacket(
 		buffer[0:],
-		Protocol.DataLayerType,
+		protocol.DataLayerType,
 		gopacket.Default,
 	)
-	decodePacket := packet.Layer(Protocol.DataLayerType)
+	decodePacket := packet.Layer(protocol.DataLayerType)
 	if decodePacket == nil {
 		fmt.Fprintf(os.Stderr, "decodePacket is nil!", error.Error)
 	}
-	content := decodePacket.(*Protocol.DataLayer)
+	content := decodePacket.(*protocol.DataLayer)
 	return content
 }
 
@@ -144,21 +144,21 @@ func encodeDataInPacket(seqNum uint32, ackNum uint32, idCon uint16, flags uint16
 
 	var packet = gopacket.NewPacket(
 		buffer.Bytes(),
-		Protocol.DataLayerType,
+		protocol.DataLayerType,
 		gopacket.Default,
 	)
 
 	return packet
 }
 
-func sendPacket(packet gopacket.Packet, conn *net.UDPConn) *Protocol.DataLayer {
+func sendPacket(packet gopacket.Packet, conn *net.UDPConn) *protocol.DataLayer {
 
 	// PARTE USADA APENAS PARA IMPRIMIR NA TELA
-	decodePacket := packet.Layer(Protocol.DataLayerType)
+	decodePacket := packet.Layer(protocol.DataLayerType)
 	if decodePacket == nil {
 		fmt.Fprintf(os.Stderr, "decodePacket is nil!", error.Error)
 	}
-	content := decodePacket.(*Protocol.DataLayer)
+	content := decodePacket.(*protocol.DataLayer)
 
 	//ENVIANDO DADO PARA A CONEXÃO
 	_, err := conn.Write(packet.Data())
@@ -167,7 +167,7 @@ func sendPacket(packet gopacket.Packet, conn *net.UDPConn) *Protocol.DataLayer {
 	return content
 }
 
-func recvPacket(conn *net.UDPConn) (*Protocol.DataLayer, *net.UDPAddr) {
+func recvPacket(conn *net.UDPConn) (*protocol.DataLayer, *net.UDPAddr) {
 	// VERIFICAR O TIPO DO PACOTE DE ACORDO COM A FLAG:
 	// CLIENTE TEM 3 CASOS DE RECEBIMENTO
 	// se SYN e ACK: servidor criou a conexão e definiu IdConnection, Sem payload;
@@ -214,7 +214,7 @@ func createFirstPacket() gopacket.Packet {
 
 	var packet = gopacket.NewPacket(
 		buffer.Bytes(),
-		Protocol.DataLayerType,
+		protocol.DataLayerType,
 		gopacket.Default,
 	)
 
@@ -261,7 +261,7 @@ func handleServer(conn *net.UDPConn) {
 			newContent := sendPacket(newPacket, conn)
 			printPacket("SEND", newContent)
 
-		// se só ACK: Confirmação que o pacote foi recebido, Sem payload;
+			// se só ACK: Confirmação que o pacote foi recebido, Sem payload;
 		} else if isAck && !isFin {
 
 			var seqNum = content.AckNumber
@@ -289,7 +289,7 @@ func handleServer(conn *net.UDPConn) {
 			newContent := sendPacket(newPacket, conn)
 			printPacket("SEND", newContent)
 
-		// se FIN e ACK: O pacote de encerramento de conexão chegou! Sem payload, encerrar aplicação os.Exit(0)!
+			// se FIN e ACK: O pacote de encerramento de conexão chegou! Sem payload, encerrar aplicação os.Exit(0)!
 		} else if isAck && isFin {
 			print("O arquivo foi enviado e o fechamento da conexão foi confirmado! Desligando...")
 			time.Sleep(5 * time.Second)
