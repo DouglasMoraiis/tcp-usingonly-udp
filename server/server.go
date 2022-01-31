@@ -149,7 +149,7 @@ func sendPacket(packet gopacket.Packet, conn *net.UDPConn, receiver *net.UDPAddr
 	content := decodePacket.(*protocol.DataLayer)
 
 	//ENVIANDO DADO PARA A CONEXÃO
-	_, err := conn.WriteToUDP(packet.Data(), receiver )
+	_, err := conn.WriteToUDP(packet.Data(), receiver)
 	checkError(err, "conn.Write")
 
 	return content
@@ -216,7 +216,7 @@ func handleClient(conn *net.UDPConn, dir string)  {
 
 		isAck, isSyn, isFin := readFlags(content.Flags)
 		if isSyn {
-
+			FILE = nil
 			packet := createFirstAckPacket(content, &IDConn)
 			fmt.Println("UM PACOTE SYN FOI RECEBIDO! CRIANDO CONEXÃO!")
 			newContent := sendPacket(packet, conn, address)

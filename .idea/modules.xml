@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/tcp-usingonly-udp.iml" filepath="$PROJECT_DIR$/.idea/tcp-usingonly-udp.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/udp-reliable.iml" filepath="$PROJECT_DIR$/.idea/udp-reliable.iml" />
     </modules>
   </component>
 </project>

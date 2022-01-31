@@ -2,7 +2,7 @@
 Baixe a imagem remota para a sua máquina:
 ```
 docker pull douglasmoraiis/udp-reliable:latest
-```di
+```
 ## Instalação
 Execute a imagem baixada em um container:
 ```
