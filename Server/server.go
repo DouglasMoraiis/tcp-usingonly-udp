@@ -1,7 +1,7 @@
 package main
 
 import (
-	"Client/protocol"
+	"Protocol/Protocol"
 	"bytes"
 	"encoding/binary"
 	"fmt"
@@ -69,7 +69,7 @@ func parseFlags(isAck bool, isSyn bool, isFin bool) uint16 {
 	return flags
 }
 
-func printPacket(prefix string, content *protocol.DataLayer) {
+func printPacket(prefix string, content *Protocol.DataLayer) {
 	isAck, isSyn, isFin := readFlags(content.Flags)
 	var strAck = ""
 	var strSyn = ""
@@ -96,17 +96,17 @@ func printPacket(prefix string, content *protocol.DataLayer) {
 	)
 }
 
-func decodeBytesInContent(buffer []byte) *protocol.DataLayer {
+func decodeBytesInContent(buffer []byte) *Protocol.DataLayer {
 	packet := gopacket.NewPacket(
 		buffer[0:],
-		protocol.DataLayerType,
+		Protocol.DataLayerType,
 		gopacket.Default,
 	)
-	decodePacket := packet.Layer(protocol.DataLayerType)
+	decodePacket := packet.Layer(Protocol.DataLayerType)
 	if decodePacket == nil {
 		fmt.Fprintf(os.Stderr, "decodePacket is nil!", error.Error)
 	}
-	content := decodePacket.(*protocol.DataLayer)
+	content := decodePacket.(*Protocol.DataLayer)
 	return content
 }
 
@@ -133,20 +133,20 @@ func encodeDataInPacket(seqNum uint32, ackNum uint32, idCon uint16, flags uint16
 
 	var packet = gopacket.NewPacket(
 		buffer.Bytes(),
-		protocol.DataLayerType,
+		Protocol.DataLayerType,
 		gopacket.Default,
 	)
 
 	return packet
 }
 
-func sendPacket(packet gopacket.Packet, conn *net.UDPConn, receiver *net.UDPAddr) *protocol.DataLayer {
+func sendPacket(packet gopacket.Packet, conn *net.UDPConn, receiver *net.UDPAddr) *Protocol.DataLayer {
 
-	decodePacket := packet.Layer(protocol.DataLayerType)
+	decodePacket := packet.Layer(Protocol.DataLayerType)
 	if decodePacket == nil {
 		fmt.Fprintf(os.Stderr, "decodePacket is nil!", error.Error)
 	}
-	content := decodePacket.(*protocol.DataLayer)
+	content := decodePacket.(*Protocol.DataLayer)
 
 	//ENVIANDO DADO PARA A CONEXÃO
 	_, err := conn.WriteToUDP(packet.Data(), receiver )
@@ -155,7 +155,7 @@ func sendPacket(packet gopacket.Packet, conn *net.UDPConn, receiver *net.UDPAddr
 	return content
 }
 
-func recvPacket(conn *net.UDPConn) (*protocol.DataLayer, *net.UDPAddr) {
+func recvPacket(conn *net.UDPConn) (*Protocol.DataLayer, *net.UDPAddr) {
 
 	var result [524]byte
 	size, address, err := conn.ReadFromUDP(result[0:])
@@ -167,7 +167,7 @@ func recvPacket(conn *net.UDPConn) (*protocol.DataLayer, *net.UDPAddr) {
 	return content, address
 }
 
-func createFirstAckPacket(previousContent *protocol.DataLayer, IDConn *uint16) gopacket.Packet {
+func createFirstAckPacket(previousContent *Protocol.DataLayer, IDConn *uint16) gopacket.Packet {
 	QTD_CONNECTIONS++
 	*IDConn = QTD_CONNECTIONS
 
@@ -200,7 +200,7 @@ func createFirstAckPacket(previousContent *protocol.DataLayer, IDConn *uint16) g
 
 	var packet = gopacket.NewPacket(
 		buffer.Bytes(),
-		protocol.DataLayerType,
+		Protocol.DataLayerType,
 		gopacket.Default,
 	)
 

@@ -1,4 +1,4 @@
-package protocol
+package Protocol
 
 import (
 	"encoding/binary"

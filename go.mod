@@ -1,4 +1,4 @@
-module Client
+module Protocol
 
 go 1.17
 
